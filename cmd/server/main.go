@@ -1,24 +1,30 @@
 package main
 
-/*
-#cgo LDFLAGS: -L${SRCDIR}/../../internal/protocol/zig-out/lib -lprotocol -Wl,-rpath,${SRCDIR}/../../internal/protocol/zig-out/lib
-#include <stddef.h>
-#include <stdlib.h>
-
-extern void process_and_forward(const char* msg_ptr, size_t msg_len);
-*/
-import "C"
 import (
 	"fmt"
-	"unsafe"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"mini-redis/internal/server"
 )
 
 func main() {
-	fmt.Println("[Go Server] เริ่มทำงาน และรับคำสั่งจาก Client...")
+	fmt.Println("[Mini-Redis] Starting on port 6379...")
 
-	cmd := "SET name Toey_DevOps"
-	cCmd := C.CString(cmd)
-	defer C.free(unsafe.Pointer(cCmd))
+	srv := server.New(":6379")
 
-	C.process_and_forward(cCmd, C.size_t(len(cmd)))
+	go func() {
+		if err := srv.Start(); err != nil {
+			fmt.Println("Server error:", err)
+			os.Exit(1)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	fmt.Println("\n[Mini-Redis] Shutting down...")
+	srv.Stop()
 }
