@@ -19,6 +19,9 @@ import (
 	"strconv"
 	"strings"
 	"unsafe"
+
+	"mini-redis/internal/persistence"
+	"mini-redis/internal/pubsub"
 )
 
 func init() {
@@ -54,6 +57,7 @@ func handle(raw string) string {
 		} else {
 			C.zig_set(key, val)
 		}
+		persistence.Append(raw)
 		return "+OK"
 
 	case "GET":
@@ -75,7 +79,11 @@ func handle(raw string) string {
 		}
 		key := C.CString(parts[1])
 		defer C.free(unsafe.Pointer(key))
-		return fmt.Sprintf(":%d", int(C.zig_del(key)))
+		n := int(C.zig_del(key))
+		if n > 0 {
+			persistence.Append(raw)
+		}
+		return fmt.Sprintf(":%d", n)
 
 	case "EXISTS":
 		if len(parts) < 2 {
@@ -92,6 +100,13 @@ func handle(raw string) string {
 		key := C.CString(parts[1])
 		defer C.free(unsafe.Pointer(key))
 		return fmt.Sprintf(":%d", int(C.zig_ttl(key)))
+
+	case "PUBLISH":
+		if len(parts) < 3 {
+			return "-ERR wrong number of arguments for 'publish'"
+		}
+		n := pubsub.Publish(parts[1], parts[2])
+		return fmt.Sprintf(":%d", n)
 
 	default:
 		return "-ERR unknown command '" + parts[0] + "'"

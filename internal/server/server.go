@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net"
 	"sync"
+
+	"mini-redis/internal/persistence"
 )
 
 type Server struct {
@@ -21,6 +23,13 @@ func New(addr string) *Server {
 }
 
 func (s *Server) Start() error {
+	if err := persistence.Replay("data/appendonly.aof", handle); err != nil {
+		fmt.Println("AOF replay error:", err)
+	}
+	if err := persistence.Open("data/appendonly.aof"); err != nil {
+		return err
+	}
+
 	ln, err := net.Listen("tcp", s.addr)
 	if err != nil {
 		return err
@@ -51,4 +60,5 @@ func (s *Server) Stop() {
 	close(s.quit)
 	s.listener.Close()
 	s.wg.Wait()
+	persistence.Close()
 }

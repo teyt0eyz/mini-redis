@@ -2,28 +2,178 @@ package server
 
 import (
 	"bufio"
+	"context"
 	"fmt"
+	"io"
 	"net"
+	"strconv"
 	"strings"
+
+	"mini-redis/internal/pubsub"
 )
 
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
-	
 
 	addr := conn.RemoteAddr().String()
 	fmt.Println("[Server] Client connected:", addr)
 
-	scanner := bufio.NewScanner(conn)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
+	reader := bufio.NewReader(conn)
+
+	for {
+		b, err := reader.Peek(1)
+		if err != nil {
+			break
 		}
 
-		response := handle(line)
-		fmt.Fprintln(conn, response)
+		var response string
+		if b[0] == '*' {
+			args, err := parseRESP(reader)
+			if err != nil {
+				conn.Write([]byte("-ERR " + err.Error() + "\r\n"))
+				continue
+			}
+			if len(args) == 0 {
+				continue
+			}
+			if strings.ToUpper(args[0]) == "SUBSCRIBE" && len(args) > 1 {
+				handleSubscribeMode(conn, args[1:])
+				return
+			}
+			result := handle(strings.Join(args, " "))
+			response = toRESP(result)
+		} else {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				break
+			}
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			parts := strings.Fields(line)
+			if len(parts) > 1 && strings.ToUpper(parts[0]) == "SUBSCRIBE" {
+				handleSubscribeMode(conn, parts[1:])
+				return
+			}
+			result := handle(line)
+			response = result + "\n"
+		}
+
+		conn.Write([]byte(response))
 	}
 
 	fmt.Println("[Server] Client disconnected:", addr)
+}
+
+func handleSubscribeMode(conn net.Conn, topics []string) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	merged := make(chan pubsub.Message, 32)
+
+	for i, topic := range topics {
+		ch := make(chan pubsub.Message, 16)
+		pubsub.Subscribe(topic, ch)
+
+		t := topic
+		go func(c chan pubsub.Message) {
+			defer pubsub.Unsubscribe(t, c)
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case msg := <-c:
+					select {
+					case merged <- msg:
+					case <-ctx.Done():
+						return
+					}
+				}
+			}
+		}(ch)
+
+		resp := fmt.Sprintf("*3\r\n$9\r\nsubscribe\r\n$%d\r\n%s\r\n:%d\r\n",
+			len(topic), topic, i+1)
+		conn.Write([]byte(resp))
+	}
+
+	go func() {
+		buf := make([]byte, 64)
+		for {
+			if _, err := conn.Read(buf); err != nil {
+				cancel()
+				return
+			}
+		}
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg := <-merged:
+			resp := fmt.Sprintf("*3\r\n$7\r\nmessage\r\n$%d\r\n%s\r\n$%d\r\n%s\r\n",
+				len(msg.Topic), msg.Topic, len(msg.Payload), msg.Payload)
+			if _, err := conn.Write([]byte(resp)); err != nil {
+				return
+			}
+		}
+	}
+}
+
+func parseRESP(r *bufio.Reader) ([]string, error) {
+	line, err := r.ReadString('\n')
+	if err != nil {
+		return nil, err
+	}
+	line = strings.TrimSpace(line)
+	if len(line) < 2 || line[0] != '*' {
+		return nil, fmt.Errorf("invalid RESP array")
+	}
+	count, err := strconv.Atoi(line[1:])
+	if err != nil || count < 0 {
+		return nil, fmt.Errorf("invalid array length")
+	}
+
+	args := make([]string, 0, count)
+	for i := 0; i < count; i++ {
+		lenLine, err := r.ReadString('\n')
+		if err != nil {
+			return nil, err
+		}
+		lenLine = strings.TrimSpace(lenLine)
+		if len(lenLine) < 2 || lenLine[0] != '$' {
+			return nil, fmt.Errorf("expected bulk string")
+		}
+		strLen, err := strconv.Atoi(lenLine[1:])
+		if err != nil || strLen < 0 {
+			return nil, fmt.Errorf("invalid bulk string length")
+		}
+		buf := make([]byte, strLen)
+		if _, err := io.ReadFull(r, buf); err != nil {
+			return nil, err
+		}
+		io.ReadFull(r, make([]byte, 2))
+		args = append(args, string(buf))
+	}
+	return args, nil
+}
+
+func toRESP(s string) string {
+	switch {
+	case s == "+PONG", s == "+OK":
+		return s + "\r\n"
+	case strings.HasPrefix(s, "-"):
+		return s + "\r\n"
+	case strings.HasPrefix(s, ":"):
+		return s + "\r\n"
+	case s == "$-1":
+		return "$-1\r\n"
+	case strings.HasPrefix(s, "+"):
+		val := s[1:]
+		return fmt.Sprintf("$%d\r\n%s\r\n", len(val), val)
+	default:
+		return "-ERR internal error\r\n"
+	}
 }
