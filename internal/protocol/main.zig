@@ -1,13 +1,27 @@
 const std = @import("std");
 
-// ประกาศดึงฟังก์ชันจากไฟล์สแตติกไลบรารีของ Rust ที่เราทำไว้
-extern fn save_command(command_ptr: [*:0]const u8) void;
+extern fn store_set(key: [*:0]const u8, val: [*:0]const u8) void;
+extern fn store_get(key: [*:0]const u8) [*c]u8;
+extern fn store_del(key: [*:0]const u8) i32;
+extern fn store_exists(key: [*:0]const u8) i32;
+extern fn store_free_string(ptr: [*c]u8) void;
 
-// ฟังก์ชันที่สร้างเปิดให้ Go เข้ามาเรียกใช้ (C ABI เหมือนกัน)
-export fn process_and_forward(msg_ptr: [*:0]const u8, msg_len: usize) void {
-    // 1. พิมพ์ Log ฝั่ง Zig ตามโจทย์เช้า
-    std.debug.print("[Zig Core] กำลังประมวลผลคำสั่งความยาว {d} bytes...\n", .{msg_len});
+export fn zig_set(key: [*:0]const u8, val: [*:0]const u8) void {
+    store_set(key, val);
+}
 
-    // 2. ส่งต่อพอยน์เตอร์ข้อมูลนี้ไปให้ Rust ทำงานต่อตรงๆ
-    save_command(msg_ptr);
+export fn zig_get(key: [*:0]const u8) [*c]u8 {
+    return store_get(key);
+}
+
+export fn zig_del(key: [*:0]const u8) i32 {
+    return store_del(key);
+}
+
+export fn zig_exists(key: [*:0]const u8) i32 {
+    return store_exists(key);
+}
+
+export fn zig_free_string(ptr: [*c]u8) void {
+    store_free_string(ptr);
 }
