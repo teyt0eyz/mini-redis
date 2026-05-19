@@ -1,7 +1,7 @@
 package main
 
 /*
-#cgo LDFLAGS: -L${SRCDIR}/internal/protocol/zig-out/lib -lprotocol -Wl,-rpath,${SRCDIR}/internal/protocol/zig-out/lib
+#cgo LDFLAGS: -L${SRCDIR}/../../internal/protocol/zig-out/lib -lprotocol -Wl,-rpath,${SRCDIR}/../../internal/protocol/zig-out/lib
 #include <stddef.h>
 #include <stdlib.h>
 
