@@ -73,6 +73,7 @@ GET <key>                    → value or (nil)
 DEL <key>                    → 1 or 0
 EXISTS <key>                 → 1 or 0
 TTL <key>                    → seconds remaining (-1=no TTL, -2=gone)
+INCR <key>                   → new integer value (auto-creates key at 0)
 SUBSCRIBE <topic> [topic...]  → (blocks, receives published messages)
 PUBLISH <topic> <message>    → number of subscribers notified
 REPLICAOF <host> <port>      → promote this node to replica of master
@@ -118,7 +119,7 @@ When the store reaches `MAX_KEYS` entries and a new key arrives, the least recen
 
 - Go 1.22+
 - Rust + Cargo (`rustup`)
-- Zig 0.14.0
+- Zig 0.14.0+ (tested with 0.16.0)
 
 ### Build & Run
 
@@ -132,6 +133,19 @@ Test:
 redis-cli ping
 redis-cli set foo bar
 redis-cli get foo
+```
+
+### Run Tests
+
+```bash
+# Unit tests (no server required)
+go test ./test/ -run "Command|PubSub|AOF" -v
+
+# Integration tests (server must be running)
+go test ./test/ -run "Integration" -v
+
+# All tests
+go test ./test/ -v
 ```
 
 ### Environment Variables
@@ -283,7 +297,7 @@ make docker-run
 sudo apt update && sudo apt install -y docker.io
 sudo systemctl enable --now docker
 
-git clone <repo-url> mini-redis
+git clone https://github.com/internPholx/mini-redis.git mini-redis
 cd mini-redis
 
 make docker-build
@@ -305,19 +319,23 @@ mini-redis/
 │   │   ├── server.go        # TCP listener
 │   │   ├── connection.go    # per-connection loop, MULTI/EXEC
 │   │   └── handler.go       # CGo bridge + command dispatch
+│   ├── command/command.go   # Command struct + Parse()
 │   ├── protocol/
 │   │   └── main.zig         # Zig bridge (C ABI ↔ Rust)
 │   ├── storage/
 │   │   ├── lib.rs           # C ABI exports
 │   │   └── src/
-│   │       ├── store.rs     # HashMap + LRU + expired counter
+│   │       ├── store.rs     # HashMap + LRU + expired counter + INCR
 │   │       ├── item.rs      # TTL + last_accessed tracking
-│   │       └── expire.rs    # background cleanup goroutine
+│   │       └── expire.rs    # background cleanup thread
 │   ├── persistence/aof.go   # Append Only File
 │   ├── pubsub/pubsub.go     # channel-based pub/sub
 │   ├── replication/         # master-replica sync
 │   ├── cluster/             # FNV hash routing
 │   └── metrics/metrics.go   # Prometheus export
+├── test/
+│   ├── unit_test.go         # pubsub, AOF, command parsing (no server needed)
+│   └── integration_test.go  # full command tests (auto-skip if server down)
 ├── data/                    # AOF + snapshot files
 ├── Dockerfile               # multi-stage: Rust→Zig→Go→ubuntu
 ├── Makefile
