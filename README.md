@@ -113,21 +113,17 @@ MAX_KEYS=1000 ./mini-redis
 
 When the store reaches `MAX_KEYS` entries and a new key arrives, the least recently accessed key is evicted automatically. Default is 0 (unlimited).
 
-## Run Locally (macOS / Linux)
+## Run Locally (Linux)
 
 ### Prerequisites
 
 - Go 1.22+
 - Rust + Cargo
-- Zig 0.14.0+ (tested with 0.16.0)
+- Zig 0.14.0+
 
 #### Install Go
 ```bash
-# Ubuntu/Debian
 sudo apt install -y golang-go
-
-# macOS
-brew install go
 ```
 
 #### Install Rust
@@ -136,38 +132,31 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source $HOME/.cargo/env
 ```
 
-#### Install Zig (Linux x86_64)
+#### Install Zig
 ```bash
-# 1. Download
+# Check architecture first
+uname -m   # x86_64 or aarch64
+```
+
+**x86_64:**
+```bash
 curl -L https://ziglang.org/download/0.14.0/zig-linux-x86_64-0.14.0.tar.xz \
   -o /tmp/zig.tar.xz
-
-# 2. Extract (requires sudo for /usr/local)
 sudo tar -xJ -f /tmp/zig.tar.xz -C /usr/local
-
-# 3. Symlink (remove old one if it exists)
 sudo rm -f /usr/local/bin/zig
 sudo ln -s /usr/local/zig-linux-x86_64-0.14.0/zig /usr/local/bin/zig
-
-# 4. Verify
-zig version   # should print 0.14.0
+zig version
 ```
 
-#### Install Zig (macOS)
-```bash
-brew install zig
-```
-
-#### Install Zig (Linux ARM64 / aarch64)
+**aarch64 (ARM):**
 ```bash
 curl -L https://ziglang.org/download/0.14.0/zig-linux-aarch64-0.14.0.tar.xz \
   -o /tmp/zig.tar.xz
 sudo tar -xJ -f /tmp/zig.tar.xz -C /usr/local
 sudo rm -f /usr/local/bin/zig
 sudo ln -s /usr/local/zig-linux-aarch64-0.14.0/zig /usr/local/bin/zig
+zig version
 ```
-
-> Check your architecture with `uname -m` — `x86_64` or `aarch64`
 
 ### Build & Run
 
