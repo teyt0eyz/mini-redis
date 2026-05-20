@@ -159,13 +159,13 @@ Run benchmark (server must be running first with `make run`):
 make benchmark
 ```
 
-Typical results on a modern machine (Apple M-series / AWS t3.medium):
+Results on Proxmox VM (Ubuntu 22.04, 50 concurrent clients, 100k requests):
 
 ```
-PING_INLINE: 52341.54 requests per second
-PING_MBULK:  54256.67 requests per second
-SET:         48123.45 requests per second
-GET:         53901.12 requests per second
+PING_INLINE: 34,686 requests per second   p50=1.255ms
+PING_MBULK:  35,112 requests per second   p50=1.295ms
+SET:         33,545 requests per second   p50=1.439ms
+GET:         34,387 requests per second   p50=1.359ms
 ```
 
 Run full benchmark manually:
@@ -178,20 +178,30 @@ redis-benchmark -p 6379 -t ping,set,get -n 100000 -c 50 -q
 redis-benchmark -p 6379 -t set,get -n 100000 --csv
 ```
 
+> Note: Performance on Proxmox VM is ~30% lower than bare metal due to hypervisor overhead.
+> The Go→Zig→Rust CGo bridge adds per-call latency compared to a pure Go implementation.
+
 ## Stress Test
 
 ```bash
 make stress
 ```
 
-Tests 1000 concurrent clients with 200k total requests:
+Results on Proxmox VM (1000 concurrent clients, 200k requests):
+
+```
+PING_INLINE: 21,447 requests per second   p50=46.559ms
+PING_MBULK:  27,166 requests per second   p50=36.191ms
+SET:         22,983 requests per second   p50=43.807ms
+GET:         23,877 requests per second   p50=42.495ms
+```
 
 ```bash
 # Manual stress test
 redis-benchmark -p 6379 -n 200000 -c 1000 -q
 ```
 
-The server handles concurrent load via per-connection goroutines with Rust's `Mutex<HashMap>` providing thread-safe storage. No crashes observed under 1000 concurrent connections.
+The server handled 1000 concurrent connections without crashing. Throughput drops under extreme concurrency due to lock contention on Rust's `Mutex<HashMap>` — an expected trade-off for thread safety.
 
 ## Graceful Shutdown
 
