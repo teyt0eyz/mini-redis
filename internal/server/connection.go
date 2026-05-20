@@ -233,6 +233,9 @@ func toRESP(s string) string {
 	case s == "$-1":
 		return "$-1\r\n"
 	case strings.HasPrefix(s, "*"):
+		if strings.HasSuffix(s, "\r\n") {
+			return s
+		}
 		return s + "\r\n"
 	case strings.HasPrefix(s, "+"):
 		val := s[1:]
