@@ -379,32 +379,44 @@ make run
 ```
 mini-redis/
 ├── cmd/
-│   ├── server/main.go       # entry point, graceful shutdown
-│   └── cluster/main.go      # FNV hash routing proxy
+│   ├── server/main.go            # entry point, graceful shutdown
+│   └── cluster/main.go           # FNV hash routing proxy
+│
 ├── internal/
 │   ├── server/
-│   │   ├── server.go        # TCP listener
-│   │   ├── connection.go    # per-connection loop, MULTI/EXEC
-│   │   └── handler.go       # CGo bridge + command dispatch
-│   ├── command/command.go   # Command struct + Parse()
+│   │   ├── server.go             # TCP listener
+│   │   ├── connection.go         # per-connection loop, MULTI/EXEC
+│   │   └── handler.go            # CGo bridge + command dispatch
+│   ├── command/
+│   │   └── command.go            # Command struct + Parse()
 │   ├── protocol/
-│   │   └── main.zig         # Zig bridge (C ABI ↔ Rust)
+│   │   ├── main.zig              # Zig bridge (C ABI ↔ Rust)
+│   │   └── build.zig             # Zig build script
 │   ├── storage/
-│   │   ├── lib.rs           # C ABI exports
+│   │   ├── lib.rs                # C ABI exports
+│   │   ├── Cargo.toml
 │   │   └── src/
-│   │       ├── store.rs     # HashMap + LRU + expired counter + INCR
-│   │       ├── item.rs      # TTL + last_accessed tracking
-│   │       └── expire.rs    # background cleanup thread
-│   ├── persistence/aof.go   # Append Only File
-│   ├── pubsub/pubsub.go     # channel-based pub/sub
-│   ├── replication/         # master-replica sync
-│   ├── cluster/             # FNV hash routing
-│   └── metrics/metrics.go   # Prometheus export
+│   │       ├── store.rs          # HashMap + LRU + INCR + expired counter
+│   │       ├── item.rs           # TTL + last_accessed tracking
+│   │       └── expire.rs         # background cleanup thread
+│   ├── persistence/
+│   │   └── aof.go                # Append Only File (write + replay)
+│   ├── pubsub/
+│   │   └── pubsub.go             # channel-based pub/sub
+│   ├── replication/
+│   │   └── replication.go        # master-replica sync
+│   ├── cluster/
+│   │   └── cluster.go            # FNV hash routing
+│   └── metrics/
+│       └── metrics.go            # Prometheus metrics export
+│
 ├── test/
-│   ├── unit_test.go         # pubsub, AOF, command parsing (no server needed)
-│   └── integration_test.go  # full command tests (auto-skip if server down)
-├── data/                    # AOF + snapshot files
-├── Dockerfile               # multi-stage: Rust→Zig→Go→ubuntu
+│   ├── unit_test.go              # pubsub, AOF, command parsing (no server needed)
+│   └── integration_test.go       # full command tests (auto-skip if server down)
+│
+├── data/                         # AOF + snapshot files (gitignored)
+├── Dockerfile                    # multi-stage: Rust → Zig → Go → ubuntu runtime
 ├── Makefile
+├── go.mod
 └── .env.example
 ```
