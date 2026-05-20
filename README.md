@@ -118,8 +118,56 @@ When the store reaches `MAX_KEYS` entries and a new key arrives, the least recen
 ### Prerequisites
 
 - Go 1.22+
-- Rust + Cargo (`rustup`)
+- Rust + Cargo
 - Zig 0.14.0+ (tested with 0.16.0)
+
+#### Install Go
+```bash
+# Ubuntu/Debian
+sudo apt install -y golang-go
+
+# macOS
+brew install go
+```
+
+#### Install Rust
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
+```
+
+#### Install Zig (Linux x86_64)
+```bash
+# 1. Download
+curl -L https://ziglang.org/download/0.14.0/zig-linux-x86_64-0.14.0.tar.xz \
+  -o /tmp/zig.tar.xz
+
+# 2. Extract (requires sudo for /usr/local)
+sudo tar -xJ -f /tmp/zig.tar.xz -C /usr/local
+
+# 3. Symlink (remove old one if it exists)
+sudo rm -f /usr/local/bin/zig
+sudo ln -s /usr/local/zig-linux-x86_64-0.14.0/zig /usr/local/bin/zig
+
+# 4. Verify
+zig version   # should print 0.14.0
+```
+
+#### Install Zig (macOS)
+```bash
+brew install zig
+```
+
+#### Install Zig (Linux ARM64 / aarch64)
+```bash
+curl -L https://ziglang.org/download/0.14.0/zig-linux-aarch64-0.14.0.tar.xz \
+  -o /tmp/zig.tar.xz
+sudo tar -xJ -f /tmp/zig.tar.xz -C /usr/local
+sudo rm -f /usr/local/bin/zig
+sudo ln -s /usr/local/zig-linux-aarch64-0.14.0/zig /usr/local/bin/zig
+```
+
+> Check your architecture with `uname -m` — `x86_64` or `aarch64`
 
 ### Build & Run
 
@@ -293,18 +341,48 @@ make docker-run
 
 ## Deploy on Ubuntu Server
 
+### Option A — Docker (recommended, no toolchain needed)
+
 ```bash
+# 1. Install Docker
 sudo apt update && sudo apt install -y docker.io
 sudo systemctl enable --now docker
+sudo usermod -aG docker $USER && newgrp docker
 
-git clone https://github.com/internPholx/mini-redis.git mini-redis
+# 2. Clone
+git clone https://github.com/internPholx/mini-redis.git
 cd mini-redis
 
+# 3. Build & run
 make docker-build
 make docker-run
 
-redis-cli -h <server-ip> ping
-curl http://<server-ip>:2112/metrics
+# 4. Verify
+redis-cli ping
+curl http://localhost:2112/metrics
+```
+
+### Option B — Build from source (requires toolchain)
+
+```bash
+# 1. Install dependencies
+sudo apt update && sudo apt install -y golang-go redis-tools
+
+# Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
+
+# Zig
+curl -L https://ziglang.org/download/0.14.0/zig-linux-x86_64-0.14.0.tar.xz \
+  -o /tmp/zig.tar.xz
+sudo tar -xJ -f /tmp/zig.tar.xz -C /usr/local
+sudo rm -f /usr/local/bin/zig
+sudo ln -s /usr/local/zig-linux-x86_64-0.14.0/zig /usr/local/bin/zig
+
+# 2. Clone & run
+git clone https://github.com/internPholx/mini-redis.git
+cd mini-redis
+make run
 ```
 
 ## Project Structure
