@@ -94,3 +94,25 @@ pub fn cleanup_expired() {
 pub fn expired_count() -> u64 {
     EXPIRED_COUNT.load(Ordering::Relaxed)
 }
+
+pub fn incr(key: &str) -> Result<i64, &'static str> {
+    let mut map = get_store().lock().unwrap();
+    let current: i64 = match map.get(key) {
+        Some(item) if item.is_expired() => {
+            map.remove(key);
+            EXPIRED_COUNT.fetch_add(1, Ordering::Relaxed);
+            0
+        }
+        Some(item) => item.value.parse::<i64>()
+            .map_err(|_| "ERR value is not an integer or out of range")?,
+        None => 0,
+    };
+    let new_val = current.checked_add(1)
+        .ok_or("ERR increment or decrement would overflow")?;
+    let max = MAX_KEYS.load(Ordering::Relaxed);
+    if max > 0 && map.len() >= max as usize && !map.contains_key(key) {
+        evict_lru(&mut map);
+    }
+    map.insert(key.to_string(), Item::new(new_val.to_string()));
+    Ok(new_val)
+}

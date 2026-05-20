@@ -14,10 +14,12 @@ extern long long zig_ttl(const char* key);
 extern void zig_free_string(char* ptr);
 extern unsigned long long zig_expired_count();
 extern void zig_set_max_keys(unsigned long long n);
+extern long long zig_incr(const char* key);
 */
 import "C"
 import (
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -124,6 +126,27 @@ func handle(raw string) string {
 		}
 		n := pubsub.Publish(c.Args[0], c.Args[1])
 		return fmt.Sprintf(":%d", n)
+
+	case "INCR":
+		if len(c.Args) < 1 {
+			return "-ERR wrong number of arguments for 'incr'"
+		}
+		key := C.CString(c.Args[0])
+		defer C.free(unsafe.Pointer(key))
+		result := int64(C.zig_incr(key))
+		if result == math.MinInt64 {
+			return "-ERR value is not an integer or out of range"
+		}
+		if result == math.MinInt64+1 {
+			return "-ERR increment or decrement would overflow"
+		}
+		persistence.Append(raw)
+		replication.Propagate(raw)
+		return fmt.Sprintf(":%d", result)
+
+	case "CONFIG":
+		// Return empty array — satisfies redis-benchmark without breaking anything
+		return "*0"
 
 	case "REPLICAOF":
 		if len(c.Args) < 2 {

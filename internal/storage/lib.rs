@@ -85,3 +85,19 @@ pub extern "C" fn store_expired_count() -> u64 {
 pub extern "C" fn store_set_max_keys(n: u64) {
     store::set_max_keys(n);
 }
+
+// Returns new value on success.
+// i64::MIN   = value is not an integer
+// i64::MIN+1 = overflow
+#[unsafe(no_mangle)]
+pub extern "C" fn store_incr(key_ptr: *const c_char) -> i64 {
+    if key_ptr.is_null() { return i64::MIN; }
+    unsafe {
+        let key = CStr::from_ptr(key_ptr).to_str().unwrap_or("");
+        match store::incr(key) {
+            Ok(n)                          => n,
+            Err(e) if e.contains("range") => i64::MIN,
+            Err(_)                         => i64::MIN + 1,
+        }
+    }
+}
