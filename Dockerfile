@@ -32,8 +32,9 @@ RUN go build -o mini-redis-cluster ./cmd/cluster/
 FROM ubuntu:22.04
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY --from=zig-builder /app/internal/protocol/zig-out/lib/libprotocol.so \
-    ./internal/protocol/zig-out/lib/libprotocol.so
+# Copy .so to system library path so the dynamic linker can always find it
+COPY --from=zig-builder /app/internal/protocol/zig-out/lib/libprotocol.so /usr/local/lib/libprotocol.so
+RUN ldconfig
 COPY --from=go-builder /app/mini-redis .
 COPY --from=go-builder /app/mini-redis-cluster .
 RUN mkdir -p data
