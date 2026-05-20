@@ -1,9 +1,19 @@
-# Zig
-.zig-cache/
-zig-out/
-
-# Rust
+# Build artifacts
+mini-redis
+mini-redis-cluster
 internal/storage/target/
+internal/persistence/target/
+internal/protocol/zig-out/
+internal/protocol/.zig-cache/
 
-# Go
-*.exe
+# Runtime data
+data/*.aof
+data/*.rdb
+
+# macOS
+.DS_Store
+
+# Editor
+.env
+*.swp
+*.swo

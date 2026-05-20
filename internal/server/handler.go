@@ -12,14 +12,18 @@ extern int zig_del(const char* key);
 extern int zig_exists(const char* key);
 extern long long zig_ttl(const char* key);
 extern void zig_free_string(char* ptr);
+extern unsigned long long zig_expired_count();
+extern void zig_set_max_keys(unsigned long long n);
 */
 import "C"
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"unsafe"
 
+	"mini-redis/internal/metrics"
 	"mini-redis/internal/persistence"
 	"mini-redis/internal/pubsub"
 	"mini-redis/internal/replication"
@@ -27,6 +31,17 @@ import (
 
 func init() {
 	C.zig_start_cleanup()
+
+	if maxStr := os.Getenv("MAX_KEYS"); maxStr != "" {
+		if n, err := strconv.ParseUint(maxStr, 10, 64); err == nil && n > 0 {
+			C.zig_set_max_keys(C.ulonglong(n))
+			fmt.Printf("[Store] LRU eviction enabled: max %d keys\n", n)
+		}
+	}
+
+	metrics.GetExpiredCount = func() int64 {
+		return int64(C.zig_expired_count())
+	}
 }
 
 func handle(raw string) string {

@@ -10,6 +10,7 @@ import (
 var (
 	ConnectedClients int64
 	TotalRequests    int64
+	GetExpiredCount  func() int64
 )
 
 func IncrClients()  { atomic.AddInt64(&ConnectedClients, 1) }
@@ -28,6 +29,11 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Fprintf(w, "# TYPE mini_redis_memory_bytes gauge\n")
 	fmt.Fprintf(w, "mini_redis_memory_bytes %d\n\n", mem.Alloc)
+
+	if GetExpiredCount != nil {
+		fmt.Fprintf(w, "# TYPE mini_redis_expired_keys_total counter\n")
+		fmt.Fprintf(w, "mini_redis_expired_keys_total %d\n\n", GetExpiredCount())
+	}
 }
 
 func Start(addr string) {

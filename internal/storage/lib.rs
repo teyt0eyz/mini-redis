@@ -75,3 +75,13 @@ pub extern "C" fn store_free_string(ptr: *mut c_char) {
         unsafe { drop(CString::from_raw(ptr)) };
     }
 }
+
+#[unsafe(no_mangle)]
+pub extern "C" fn store_expired_count() -> u64 {
+    store::expired_count()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn store_set_max_keys(n: u64) {
+    store::set_max_keys(n);
+}

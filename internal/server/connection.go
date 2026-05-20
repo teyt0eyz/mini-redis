@@ -24,29 +24,26 @@ func handleConnection(conn net.Conn) {
 
 	reader := bufio.NewReader(conn)
 
+	var txQueue []string
+	inTx := false
+
+	write := func(s string) { conn.Write([]byte(s)) }
+
 	for {
 		b, err := reader.Peek(1)
 		if err != nil {
 			break
 		}
 
-		var response string
-		if b[0] == '*' {
-			args, err := parseRESP(reader)
+		var args []string
+		isRESP := b[0] == '*'
+
+		if isRESP {
+			args, err = parseRESP(reader)
 			if err != nil {
-				conn.Write([]byte("-ERR " + err.Error() + "\r\n"))
+				write("-ERR " + err.Error() + "\r\n")
 				continue
 			}
-			if len(args) == 0 {
-				continue
-			}
-			if strings.ToUpper(args[0]) == "SUBSCRIBE" && len(args) > 1 {
-				handleSubscribeMode(conn, args[1:])
-				return
-			}
-			metrics.IncrRequests()
-			result := handle(strings.Join(args, " "))
-			response = toRESP(result)
 		} else {
 			line, err := reader.ReadString('\n')
 			if err != nil {
@@ -60,17 +57,61 @@ func handleConnection(conn net.Conn) {
 				handleReplicaMode(conn)
 				return
 			}
-			parts := strings.Fields(line)
-			if len(parts) > 1 && strings.ToUpper(parts[0]) == "SUBSCRIBE" {
-				handleSubscribeMode(conn, parts[1:])
-				return
-			}
-			metrics.IncrRequests()
-			result := handle(line)
-			response = result + "\r\n"
+			args = strings.Fields(line)
 		}
 
-		conn.Write([]byte(response))
+		if len(args) == 0 {
+			continue
+		}
+
+		cmd := strings.ToUpper(args[0])
+
+		if cmd == "SUBSCRIBE" && len(args) > 1 {
+			handleSubscribeMode(conn, args[1:])
+			return
+		}
+
+		// Transaction state machine
+		if inTx {
+			switch cmd {
+			case "EXEC":
+				results := make([]string, 0, len(txQueue))
+				for _, q := range txQueue {
+					results = append(results, handle(q))
+				}
+				txQueue = txQueue[:0]
+				inTx = false
+				resp := fmt.Sprintf("*%d\r\n", len(results))
+				for _, r := range results {
+					resp += toRESP(r)
+				}
+				write(resp)
+			case "DISCARD":
+				txQueue = txQueue[:0]
+				inTx = false
+				write("+OK\r\n")
+			case "MULTI":
+				write("-ERR MULTI calls can not be nested\r\n")
+			default:
+				txQueue = append(txQueue, strings.Join(args, " "))
+				write("+QUEUED\r\n")
+			}
+			continue
+		}
+
+		if cmd == "MULTI" {
+			inTx = true
+			write("+OK\r\n")
+			continue
+		}
+
+		metrics.IncrRequests()
+		result := handle(strings.Join(args, " "))
+		if isRESP {
+			write(toRESP(result))
+		} else {
+			write(result + "\r\n")
+		}
 	}
 
 	fmt.Println("[Server] Client disconnected:", addr)
