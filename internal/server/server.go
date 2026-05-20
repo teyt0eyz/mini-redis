@@ -3,6 +3,8 @@ package server
 import (
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"sync"
 
 	"mini-redis/internal/persistence"
@@ -23,10 +25,17 @@ func New(addr string) *Server {
 }
 
 func (s *Server) Start() error {
-	if err := persistence.Replay("data/appendonly.aof", handle); err != nil {
+	aofPath := os.Getenv("AOF_PATH")
+	if aofPath == "" {
+		aofPath = "data/appendonly.aof"
+	}
+	if err := os.MkdirAll(filepath.Dir(aofPath), 0755); err != nil {
+		return err
+	}
+	if err := persistence.Replay(aofPath, handle); err != nil {
 		fmt.Println("AOF replay error:", err)
 	}
-	if err := persistence.Open("data/appendonly.aof"); err != nil {
+	if err := persistence.Open(aofPath); err != nil {
 		return err
 	}
 

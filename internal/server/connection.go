@@ -9,11 +9,15 @@ import (
 	"strconv"
 	"strings"
 
+	"mini-redis/internal/metrics"
 	"mini-redis/internal/pubsub"
+	"mini-redis/internal/replication"
 )
 
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
+	metrics.IncrClients()
+	defer metrics.DecrClients()
 
 	addr := conn.RemoteAddr().String()
 	fmt.Println("[Server] Client connected:", addr)
@@ -40,6 +44,7 @@ func handleConnection(conn net.Conn) {
 				handleSubscribeMode(conn, args[1:])
 				return
 			}
+			metrics.IncrRequests()
 			result := handle(strings.Join(args, " "))
 			response = toRESP(result)
 		} else {
@@ -51,19 +56,35 @@ func handleConnection(conn net.Conn) {
 			if line == "" {
 				continue
 			}
+			if strings.ToUpper(line) == "REPLICA" {
+				handleReplicaMode(conn)
+				return
+			}
 			parts := strings.Fields(line)
 			if len(parts) > 1 && strings.ToUpper(parts[0]) == "SUBSCRIBE" {
 				handleSubscribeMode(conn, parts[1:])
 				return
 			}
+			metrics.IncrRequests()
 			result := handle(line)
-			response = result + "\n"
+			response = result + "\r\n"
 		}
 
 		conn.Write([]byte(response))
 	}
 
 	fmt.Println("[Server] Client disconnected:", addr)
+}
+
+func handleReplicaMode(conn net.Conn) {
+	replication.AddReplica(conn)
+	defer replication.RemoveReplica(conn)
+	buf := make([]byte, 1)
+	for {
+		if _, err := conn.Read(buf); err != nil {
+			return
+		}
+	}
 }
 
 func handleSubscribeMode(conn net.Conn, topics []string) {

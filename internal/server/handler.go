@@ -22,6 +22,7 @@ import (
 
 	"mini-redis/internal/persistence"
 	"mini-redis/internal/pubsub"
+	"mini-redis/internal/replication"
 )
 
 func init() {
@@ -58,6 +59,7 @@ func handle(raw string) string {
 			C.zig_set(key, val)
 		}
 		persistence.Append(raw)
+		replication.Propagate(raw)
 		return "+OK"
 
 	case "GET":
@@ -82,6 +84,7 @@ func handle(raw string) string {
 		n := int(C.zig_del(key))
 		if n > 0 {
 			persistence.Append(raw)
+			replication.Propagate(raw)
 		}
 		return fmt.Sprintf(":%d", n)
 
@@ -107,6 +110,19 @@ func handle(raw string) string {
 		}
 		n := pubsub.Publish(parts[1], parts[2])
 		return fmt.Sprintf(":%d", n)
+
+	case "REPLICAOF":
+		if len(parts) < 3 {
+			return "-ERR wrong number of arguments for 'replicaof'"
+		}
+		if strings.ToUpper(parts[1]) == "NO" {
+			return "+OK"
+		}
+		addr := parts[1] + ":" + parts[2]
+		if err := replication.ConnectToMaster(addr, handle); err != nil {
+			return "-ERR " + err.Error()
+		}
+		return "+OK"
 
 	default:
 		return "-ERR unknown command '" + parts[0] + "'"
