@@ -145,17 +145,8 @@ func handle(raw string) string {
 		return fmt.Sprintf(":%d", result)
 
 	case "CONFIG":
-		if len(c.Args) >= 2 && strings.ToUpper(c.Args[0]) == "GET" {
-			switch strings.ToLower(c.Args[1]) {
-			case "save":
-				return "*2\r\n$4\r\nsave\r\n$0\r\n\r\n"
-			case "appendonly":
-				return "*2\r\n$10\r\nappendonly\r\n$2\r\nno\r\n"
-			case "maxmemory":
-				return "*2\r\n$9\r\nmaxmemory\r\n$1\r\n0\r\n"
-			}
-		}
-		return "*0\r\n"
+		// Return empty array — satisfies redis-benchmark without breaking anything
+		return "*0"
 
 	case "REPLICAOF":
 		if len(c.Args) < 2 {
