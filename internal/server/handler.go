@@ -23,6 +23,7 @@ import (
 	"strings"
 	"unsafe"
 
+	"mini-redis/internal/command"
 	"mini-redis/internal/metrics"
 	"mini-redis/internal/persistence"
 	"mini-redis/internal/pubsub"
@@ -45,27 +46,25 @@ func init() {
 }
 
 func handle(raw string) string {
-	parts := strings.Fields(raw)
-	if len(parts) == 0 {
+	c := command.Parse(raw)
+	if c.Name == "" {
 		return "-ERR empty command"
 	}
 
-	cmd := strings.ToUpper(parts[0])
-
-	switch cmd {
+	switch c.Name {
 	case "PING":
 		return "+PONG"
 
 	case "SET":
-		if len(parts) < 3 {
+		if len(c.Args) < 2 {
 			return "-ERR wrong number of arguments for 'set'"
 		}
-		key := C.CString(parts[1])
-		val := C.CString(parts[2])
+		key := C.CString(c.Args[0])
+		val := C.CString(c.Args[1])
 		defer C.free(unsafe.Pointer(key))
 		defer C.free(unsafe.Pointer(val))
-		if len(parts) >= 5 && strings.ToUpper(parts[3]) == "EX" {
-			secs, err := strconv.ParseInt(parts[4], 10, 64)
+		if len(c.Args) >= 4 && strings.ToUpper(c.Args[2]) == "EX" {
+			secs, err := strconv.ParseInt(c.Args[3], 10, 64)
 			if err != nil || secs <= 0 {
 				return "-ERR invalid expire time in 'set'"
 			}
@@ -78,10 +77,10 @@ func handle(raw string) string {
 		return "+OK"
 
 	case "GET":
-		if len(parts) < 2 {
+		if len(c.Args) < 1 {
 			return "-ERR wrong number of arguments for 'get'"
 		}
-		key := C.CString(parts[1])
+		key := C.CString(c.Args[0])
 		defer C.free(unsafe.Pointer(key))
 		result := C.zig_get(key)
 		if result == nil {
@@ -91,10 +90,10 @@ func handle(raw string) string {
 		return "+" + C.GoString(result)
 
 	case "DEL":
-		if len(parts) < 2 {
+		if len(c.Args) < 1 {
 			return "-ERR wrong number of arguments for 'del'"
 		}
-		key := C.CString(parts[1])
+		key := C.CString(c.Args[0])
 		defer C.free(unsafe.Pointer(key))
 		n := int(C.zig_del(key))
 		if n > 0 {
@@ -104,42 +103,42 @@ func handle(raw string) string {
 		return fmt.Sprintf(":%d", n)
 
 	case "EXISTS":
-		if len(parts) < 2 {
+		if len(c.Args) < 1 {
 			return "-ERR wrong number of arguments for 'exists'"
 		}
-		key := C.CString(parts[1])
+		key := C.CString(c.Args[0])
 		defer C.free(unsafe.Pointer(key))
 		return fmt.Sprintf(":%d", int(C.zig_exists(key)))
 
 	case "TTL":
-		if len(parts) < 2 {
+		if len(c.Args) < 1 {
 			return "-ERR wrong number of arguments for 'ttl'"
 		}
-		key := C.CString(parts[1])
+		key := C.CString(c.Args[0])
 		defer C.free(unsafe.Pointer(key))
 		return fmt.Sprintf(":%d", int(C.zig_ttl(key)))
 
 	case "PUBLISH":
-		if len(parts) < 3 {
+		if len(c.Args) < 2 {
 			return "-ERR wrong number of arguments for 'publish'"
 		}
-		n := pubsub.Publish(parts[1], parts[2])
+		n := pubsub.Publish(c.Args[0], c.Args[1])
 		return fmt.Sprintf(":%d", n)
 
 	case "REPLICAOF":
-		if len(parts) < 3 {
+		if len(c.Args) < 2 {
 			return "-ERR wrong number of arguments for 'replicaof'"
 		}
-		if strings.ToUpper(parts[1]) == "NO" {
+		if strings.ToUpper(c.Args[0]) == "NO" {
 			return "+OK"
 		}
-		addr := parts[1] + ":" + parts[2]
+		addr := c.Args[0] + ":" + c.Args[1]
 		if err := replication.ConnectToMaster(addr, handle); err != nil {
 			return "-ERR " + err.Error()
 		}
 		return "+OK"
 
 	default:
-		return "-ERR unknown command '" + parts[0] + "'"
+		return "-ERR unknown command '" + c.Name + "'"
 	}
 }

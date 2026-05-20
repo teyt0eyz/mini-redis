@@ -1,0 +1,7 @@
+SET inttest_key hello
+SET inttest_del_key to_be_deleted
+DEL inttest_del_key
+SET inttest_exists_key 1
+DEL inttest_exists_key
+SET inttest_ttl_key val EX 100
+SET tx_key tx_val
