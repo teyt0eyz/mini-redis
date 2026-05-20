@@ -17,7 +17,7 @@ COPY --from=rust-builder /app/internal/storage/target/release/librust_storage.a 
 RUN cd internal/protocol && zig build -Doptimize=ReleaseSafe
 
 # Stage 3: Build Go binary
-FROM golang:1.24-bookworm AS go-builder
+FROM golang:1.22-bookworm AS go-builder
 WORKDIR /app
 COPY go.mod ./
 RUN go mod download
